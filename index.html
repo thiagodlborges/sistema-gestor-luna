@@ -163,6 +163,33 @@
   </div>
 </div>
 
+<!-- Modal: Revisão do dia (dupla checagem antes de confirmar) -->
+<div class="modal-overlay" id="modalRevisao">
+  <div class="modal" style="max-width:700px">
+    <h3>Revisar Produção do Dia</h3>
+    <div id="mrConteudo"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="confirmarDia()">✔ Confirmar Produção do Dia</button>
+      <button class="btn-outline btn" onclick="fecharModal('modalRevisao')">Continuar editando depois</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Correção pós-confirmação (exige motivo) -->
+<div class="modal-overlay" id="modalCorrecao">
+  <div class="modal" style="max-width:460px">
+    <h3 id="mcTitulo">Editar Produção</h3>
+    <p class="hint" id="mcResumo" style="margin-bottom:14px"></p>
+    <div class="field" id="mcCampoPeso" style="margin-bottom:12px"><label>Novo peso (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" id="mcPeso"></div>
+    <div class="field" style="margin-bottom:12px"><label>Motivo (obrigatório)</label><textarea class="inp" id="mcMotivo" rows="3" placeholder="Ex: peso digitado errado, sabor duplicado, etc."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="salvarCorrecao()">Salvar</button>
+      <button class="btn-outline btn" onclick="fecharModal('modalCorrecao')">Cancelar</button>
+    </div>
+    <div class="msg" id="mcMsg"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL = 'https://pbuhwpcpdcnaheaywmdv.supabase.co';
@@ -279,9 +306,8 @@ function campoLojaHTML(idSelect, valorAtual, onChangeFn){
   '</select>';
 }
 
-// ===================== LANÇAR PRODUÇÃO =====================
-let gpLoja = null, gpData = null, gpProducoesDia = [];
-let gpSaborSelecionado = null, gpKgAtual = null, gpPreview = null;
+// ===================== LANÇAR PRODUÇÃO (rascunho -> revisão -> confirmação) =====================
+let gpLoja = null, gpData = null, gpRascunhos = [], gpConfirmadas = [];
 
 async function renderProducao(){
   if (!gpLoja && !souGestorBackoffice) gpLoja = meuPerfil.loja || null;
@@ -290,151 +316,240 @@ async function renderProducao(){
   $('mainContent').innerHTML =
     '<div class="card">'+
       '<h2>Lançar Produção</h2>'+
-      '<p class="hint">Escolha o sabor e informe o peso do gelato que acabou de produzir. O sistema calcula o consumo de variegato proporcional pela ficha técnica — confirme pra registrar.</p>'+
+      '<p class="hint">Lance aqui cada gelato que for produzindo ao longo do dia. Quando terminar, revise tudo de uma vez e confirme — é nessa revisão que o consumo de variegato é calculado e gravado.</p>'+
       '<div class="row">'+
         '<div class="field" style="min-width:220px"><label>Loja</label>'+campoLojaHTML('gpLojaSelect', gpLoja, 'mudarLojaProducao()')+'</div>'+
         '<div class="field" style="max-width:180px"><label>Data</label><input class="inp" type="date" id="gpDataInput" value="'+gpData+'" onchange="mudarDataProducao()"></div>'+
       '</div>'+
-      '<div id="gpNovaProducao"></div>'+
+      '<div id="gpNovoForm"></div>'+
     '</div>'+
-    '<div class="card"><h2>Produções de hoje nessa loja</h2><div id="gpListaDia" class="loading">Carregando…</div></div>';
+    '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'+
+        '<h2 style="margin:0">Lançamentos do dia (ainda não confirmados)</h2>'+
+        '<button class="btn" id="btnRevisar" onclick="abrirRevisao()" style="display:none">✅ Revisar e Confirmar Produção do Dia</button>'+
+      '</div>'+
+      '<div id="gpListaRascunhos" style="margin-top:12px" class="loading">Carregando…</div>'+
+    '</div>'+
+    '<div class="card"><h2>Produções já confirmadas hoje</h2><div id="gpListaConfirmadas" class="loading">Carregando…</div></div>';
 
   await carregarSabores();
   await carregarFichas();
-  renderNovaProducaoForm();
-  if (gpLoja) await carregarProducoesDia(); else { $('gpListaDia').innerHTML = '<div class="empty">Escolha a loja.</div>'; }
+  renderNovoForm();
+  if (gpLoja) await carregarProducoesDia(); else {
+    $('gpListaRascunhos').innerHTML = '<div class="empty">Escolha a loja.</div>';
+    $('gpListaConfirmadas').innerHTML = '<div class="empty">Escolha a loja.</div>';
+  }
 }
 
-function mudarLojaProducao(){
-  gpLoja = $('gpLojaSelect').value || null;
-  limparPreview();
-  carregarProducoesDia();
-}
-function mudarDataProducao(){
-  gpData = $('gpDataInput').value;
-  limparPreview();
-  carregarProducoesDia();
-}
+function mudarLojaProducao(){ gpLoja = $('gpLojaSelect').value || null; carregarProducoesDia(); }
+function mudarDataProducao(){ gpData = $('gpDataInput').value; carregarProducoesDia(); }
 
-function renderNovaProducaoForm(){
-  const ativos = saboresCache;
-  const el = $('gpNovaProducao');
-  if (!ativos.length){ el.innerHTML = '<p class="hint">Nenhum sabor de gelato ativo encontrado na Precificação Fábrica.</p>'; return; }
-
+function renderNovoForm(){
+  const el = $('gpNovoForm');
+  if (!saboresCache.length){ el.innerHTML = '<p class="hint">Nenhum sabor de gelato ativo encontrado na Precificação Fábrica.</p>'; return; }
   el.innerHTML =
     '<div class="row" style="margin-top:6px">'+
-      '<div class="field" style="min-width:240px"><label>Sabor</label><select class="inp" id="gpSaborSelect" onchange="mudarSaborProducao()">'+
+      '<div class="field" style="min-width:240px"><label>Sabor</label><select class="inp" id="gpSaborSelect">'+
         '<option value="">— selecione o sabor —</option>'+
-        ativos.map(s => '<option value="'+s.id+'"'+(gpSaborSelecionado===s.id?' selected':'')+'>'+esc(s.nome)+'</option>').join('')+
+        saboresCache.map(s => '<option value="'+s.id+'">'+esc(s.nome)+'</option>').join('')+
       '</select></div>'+
-      '<div class="field" style="max-width:160px"><label>Peso do gelato (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" id="gpKgInput" value="'+(gpKgAtual||'')+'" oninput="calcularPreview()"></div>'+
-    '</div>'+
-    '<div id="gpPreviewBox"></div>';
-
-  calcularPreview();
+      '<div class="field" style="max-width:160px"><label>Peso do gelato (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" id="gpKgInput"></div>'+
+      '<button class="btn" onclick="adicionarRascunho()">+ Adicionar</button>'+
+    '</div>';
 }
 
-function mudarSaborProducao(){
-  gpSaborSelecionado = $('gpSaborSelect').value || null;
-  calcularPreview();
-}
-
-function limparPreview(){
-  gpSaborSelecionado = null; gpKgAtual = null; gpPreview = null;
-  const sel = document.getElementById('gpSaborSelect'); if (sel) sel.value = '';
-  const kg = document.getElementById('gpKgInput'); if (kg) kg.value = '';
-  const box = document.getElementById('gpPreviewBox'); if (box) box.innerHTML = '';
-}
-
-function calcularPreview(){
-  const box = $('gpPreviewBox');
-  const kgInput = $('gpKgInput');
-  gpKgAtual = kgInput ? kgInput.value : null;
-  const kg = Number(gpKgAtual);
-
-  if (!gpSaborSelecionado || !kg || kg <= 0){ box.innerHTML = ''; gpPreview = null; return; }
-
-  const sabor = saboresCache.find(s => s.id === gpSaborSelecionado);
-  const ficha = fichasCache[gpSaborSelecionado];
-
-  if (!ficha || !ficha.itens.length){
-    gpPreview = { semFicha: true };
-    box.innerHTML = '<div class="preview-box"><div class="msg show err" style="margin:0">⚠️ "'+esc(sabor.nome)+'" ainda não tem ficha técnica cadastrada. A produção pode ser confirmada mesmo assim, mas nenhum consumo de variegato será registrado.</div></div>';
-    return;
-  }
-
-  const proporcao = kg / Number(ficha.para_fazer_kg);
-  const linhas = ficha.itens.map(it => ({ nome: it.variegato_nome_cache, kg: proporcao * Number(it.peso_kg) }));
-  gpPreview = { semFicha: false, linhas };
-
-  box.innerHTML = '<div class="preview-box"><h4>Consumo de variegato calculado</h4>'+
-    linhas.map(l => '<div class="preview-line"><span>'+esc(l.nome)+'</span><span>'+fmtKg(l.kg)+'</span></div>').join('')+
-    '</div>'+
-    '<button class="btn" style="margin-top:12px" onclick="confirmarProducao()">✔ Confirmar produção</button>';
-
-  if (gpPreview.semFicha){
-    box.innerHTML += '<button class="btn" style="margin-top:12px" onclick="confirmarProducao()">✔ Confirmar produção mesmo assim</button>';
-  }
-}
-
-async function confirmarProducao(){
+async function adicionarRascunho(){
   if (!gpLoja){ alert('Escolha a loja.'); return; }
-  const kg = Number(gpKgAtual);
-  if (!gpSaborSelecionado || !kg || kg <= 0){ alert('Escolha o sabor e informe um peso válido.'); return; }
+  const saborId = $('gpSaborSelect').value;
+  const kg = Number($('gpKgInput').value);
+  if (!saborId || !kg || kg <= 0){ alert('Escolha o sabor e informe um peso válido.'); return; }
 
-  const { error } = await sb.rpc('gestor_confirmar_producao', {
-    p_loja: gpLoja, p_data: gpData, p_sabor_produto_id: gpSaborSelecionado, p_kg_gelato: kg
-  });
-  if (error){ alert('Erro ao confirmar: '+error.message); return; }
+  const { error } = await sb.rpc('gestor_lancar_rascunho', { p_loja: gpLoja, p_data: gpData, p_sabor_produto_id: saborId, p_kg_gelato: kg });
+  if (error){ alert('Erro ao lançar: '+error.message); return; }
 
-  limparPreview();
-  renderNovaProducaoForm();
+  $('gpSaborSelect').value = ''; $('gpKgInput').value = '';
   await carregarProducoesDia();
 }
 
 async function carregarProducoesDia(){
-  const el = $('gpListaDia');
-  if (!gpLoja){ el.innerHTML = '<div class="empty">Escolha a loja.</div>'; return; }
-  el.innerHTML = '<div class="loading">Carregando…</div>';
+  const rEl = $('gpListaRascunhos'), cEl = $('gpListaConfirmadas');
+  if (!gpLoja){ rEl.innerHTML = '<div class="empty">Escolha a loja.</div>'; cEl.innerHTML = '<div class="empty">Escolha a loja.</div>'; $('btnRevisar').style.display = 'none'; return; }
+  rEl.innerHTML = '<div class="loading">Carregando…</div>'; cEl.innerHTML = '<div class="loading">Carregando…</div>';
 
-  const { data, error } = await sb.from('gestor_producoes').select('*, gestor_producao_consumos(*)').eq('loja', gpLoja).eq('data_producao', gpData).order('criado_em', { ascending:false });
-  if (error){ el.innerHTML = '<div class="empty">Erro: '+esc(error.message)+'</div>'; return; }
-  gpProducoesDia = data || [];
-  renderProducoesDiaLista();
+  const { data, error } = await sb.from('gestor_producoes').select('*, gestor_producao_consumos(*)').eq('loja', gpLoja).eq('data_producao', gpData).neq('status','excluida').order('criado_em', { ascending:false });
+  if (error){ rEl.innerHTML = '<div class="empty">Erro: '+esc(error.message)+'</div>'; return; }
+
+  gpRascunhos = (data||[]).filter(p => p.status === 'rascunho');
+  gpConfirmadas = (data||[]).filter(p => p.status === 'confirmada');
+  renderRascunhosLista();
+  renderConfirmadasLista();
 }
 
-function renderProducoesDiaLista(){
-  const el = $('gpListaDia');
-  if (!gpProducoesDia.length){ el.innerHTML = '<div class="empty">Nenhuma produção confirmada ainda hoje nessa loja.</div>'; return; }
+function renderRascunhosLista(){
+  const el = $('gpListaRascunhos');
+  $('btnRevisar').style.display = gpRascunhos.length ? 'inline-block' : 'none';
+  if (!gpRascunhos.length){ el.innerHTML = '<div class="empty">Nenhum lançamento pendente. Adicione os gelatos produzidos acima.</div>'; return; }
+
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Sabor</th><th style="width:140px">Kg</th><th></th></tr></thead><tbody>'+
+    gpRascunhos.map(p => (
+      '<tr><td>'+esc(p.sabor_nome_cache)+'</td>'+
+      '<td><input class="inp" type="number" min="0.001" step="0.001" value="'+p.kg_gelato+'" onchange="editarRascunho(\''+p.id+'\',this.value)"></td>'+
+      '<td><button class="btn-danger" onclick="excluirRascunho(\''+p.id+'\')">🗑️</button></td></tr>'
+    )).join('')+
+  '</tbody></table></div>';
+}
+
+async function editarRascunho(id, valor){
+  const kg = Number(valor);
+  if (!kg || kg <= 0){ alert('Peso inválido.'); await carregarProducoesDia(); return; }
+  const { error } = await sb.rpc('gestor_atualizar_rascunho', { p_id: id, p_kg_gelato: kg });
+  if (error){ alert('Erro: '+error.message); }
+  await carregarProducoesDia();
+}
+
+async function excluirRascunho(id){
+  if (!confirm('Remover esse lançamento?')) return;
+  const { error } = await sb.rpc('gestor_excluir_rascunho', { p_id: id });
+  if (error){ alert('Erro: '+error.message); return; }
+  await carregarProducoesDia();
+}
+
+function renderConfirmadasLista(){
+  const el = $('gpListaConfirmadas');
+  if (!gpConfirmadas.length){ el.innerHTML = '<div class="empty">Nenhuma produção confirmada ainda hoje nessa loja.</div>'; return; }
 
   let totalKg = 0;
-  gpProducoesDia.forEach(p => totalKg += Number(p.kg_gelato)||0);
+  gpConfirmadas.forEach(p => totalKg += Number(p.kg_gelato)||0);
 
   el.innerHTML =
-    '<div class="stat-box"><div class="stat"><div class="num">'+totalKg.toFixed(2)+'</div><div class="lbl">Kg de gelato produzidos</div></div><div class="stat"><div class="num">'+gpProducoesDia.length+'</div><div class="lbl">Produções confirmadas</div></div></div>'+
-    gpProducoesDia.map(p => {
+    '<div class="stat-box"><div class="stat"><div class="num">'+totalKg.toFixed(2)+'</div><div class="lbl">Kg de gelato produzidos</div></div><div class="stat"><div class="num">'+gpConfirmadas.length+'</div><div class="lbl">Produções confirmadas</div></div></div>'+
+    gpConfirmadas.map(p => {
       const consumos = p.gestor_producao_consumos || [];
       return '<div class="sabor-card">'+
         '<div>'+
           '<div class="fnome">'+esc(p.sabor_nome_cache)+' — '+fmtKg(p.kg_gelato)+'</div>'+
-          '<div class="fdet">'+fmtDataHora(p.criado_em)+' · '+esc(p.registrado_por_nome||'—')+
+          '<div class="fdet">'+fmtDataHora(p.confirmado_em||p.criado_em)+' · '+esc(p.registrado_por_nome||'—')+
             (consumos.length ? '<br>Consumiu: '+consumos.map(c => esc(c.variegato_nome_cache)+' ('+fmtKg(c.kg_consumido)+')').join(', ') : '<br><span style="color:#B8791A">sem ficha técnica no momento — nenhum variegato debitado</span>')+
+            (p.motivo_alteracao ? '<br><span style="color:#B8791A">✏️ alterada — '+esc(p.motivo_alteracao)+'</span>' : '')+
           '</div>'+
         '</div>'+
-        (souGestorBackoffice ? '<div class="facoes"><button class="btn-danger" onclick="excluirProducao(\''+p.id+'\')">🗑️</button></div>' : '')+
+        '<div class="facoes"><button class="btn-outline btn btn-sm" onclick="abrirCorrecao(\''+p.id+'\',\'editar\')">✏️ Editar</button><button class="btn-danger" onclick="abrirCorrecao(\''+p.id+'\',\'excluir\')">🗑️ Excluir</button></div>'+
       '</div>';
     }).join('');
 }
 
-async function excluirProducao(id){
-  if (!confirm('Excluir essa produção e o consumo associado a ela?')) return;
-  const { error } = await sb.from('gestor_producoes').delete().eq('id', id);
-  if (error){ alert('Erro ao excluir: '+error.message); return; }
+// ── Revisão do dia (popup de dupla checagem) ──────────────────────────
+
+async function abrirRevisao(){
+  renderModalRevisaoConteudo();
+  $('modalRevisao').classList.add('show');
+}
+
+function renderModalRevisaoConteudo(){
+  const el = $('mrConteudo');
+  if (!gpRascunhos.length){ fecharModal('modalRevisao'); return; }
+
+  let totalKg = 0;
+  const consumoTotal = {};
+  const linhasHtml = gpRascunhos.map(p => {
+    totalKg += Number(p.kg_gelato)||0;
+    const ficha = fichasCache[p.sabor_produto_id];
+    let previewHtml, semFicha = false;
+    if (!ficha || !ficha.itens.length){
+      semFicha = true;
+      previewHtml = '<span style="color:#B8791A;font-size:.78rem">⚠️ sem ficha técnica — nenhum variegato será debitado</span>';
+    } else {
+      const proporcao = Number(p.kg_gelato) / Number(ficha.para_fazer_kg);
+      previewHtml = ficha.itens.map(it => {
+        const kgc = proporcao * Number(it.peso_kg);
+        consumoTotal[it.variegato_nome_cache] = (consumoTotal[it.variegato_nome_cache]||0) + kgc;
+        return '<div class="preview-line"><span>'+esc(it.variegato_nome_cache)+'</span><span>'+fmtKg(kgc)+'</span></div>';
+      }).join('');
+    }
+    return '<div class="sabor-card">'+
+      '<div style="flex:1;min-width:220px">'+
+        '<div class="fnome">'+esc(p.sabor_nome_cache)+'</div>'+
+        '<div class="row" style="margin:6px 0 8px"><div class="field" style="max-width:140px"><label>Peso (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" value="'+p.kg_gelato+'" onchange="mrEditarPeso(\''+p.id+'\',this.value)"></div></div>'+
+        (semFicha ? previewHtml : '<div class="preview-box" style="margin-top:0">'+previewHtml+'</div>')+
+      '</div>'+
+      '<button class="btn-danger" onclick="mrExcluirLinha(\''+p.id+'\')">🗑️</button>'+
+    '</div>';
+  }).join('');
+
+  const totalConsumoHtml = Object.entries(consumoTotal).sort((a,b) => b[1]-a[1])
+    .map(([n,v]) => '<div class="preview-line"><span>'+esc(n)+'</span><span>'+fmtKg(v)+'</span></div>').join('');
+
+  el.innerHTML =
+    '<p class="hint">Confira os pesos de cada gelato produzido hoje. Pode ajustar aqui mesmo — o consumo de variegato recalcula na hora.</p>'+
+    linhasHtml+
+    '<div class="preview-box" style="margin-top:14px"><h4>Total do dia: '+totalKg.toFixed(2)+' Kg de gelato</h4>'+
+      (totalConsumoHtml || '<div class="preview-line"><span style="color:var(--text-light)">Nenhum consumo de variegato será registrado (sabores sem ficha técnica).</span><span></span></div>')+
+    '</div>';
+}
+
+async function mrEditarPeso(id, valor){
+  const kg = Number(valor);
+  if (!kg || kg <= 0){ alert('Peso inválido.'); renderModalRevisaoConteudo(); return; }
+  const { error } = await sb.rpc('gestor_atualizar_rascunho', { p_id: id, p_kg_gelato: kg });
+  if (error){ alert('Erro: '+error.message); return; }
+  const item = gpRascunhos.find(p => p.id === id);
+  if (item) item.kg_gelato = kg;
+  renderModalRevisaoConteudo();
+}
+
+async function mrExcluirLinha(id){
+  if (!confirm('Remover esse lançamento da produção de hoje?')) return;
+  const { error } = await sb.rpc('gestor_excluir_rascunho', { p_id: id });
+  if (error){ alert('Erro: '+error.message); return; }
+  gpRascunhos = gpRascunhos.filter(p => p.id !== id);
+  if (!gpRascunhos.length){ fecharModal('modalRevisao'); await carregarProducoesDia(); return; }
+  renderModalRevisaoConteudo();
+}
+
+async function confirmarDia(){
+  const { data, error } = await sb.rpc('gestor_confirmar_dia', { p_loja: gpLoja, p_data: gpData });
+  if (error){ alert('Erro ao confirmar: '+error.message); return; }
+  fecharModal('modalRevisao');
+  await carregarProducoesDia();
+  alert((data||0)+' produção(ões) confirmada(s) com sucesso.');
+}
+
+// ── Correção pós-confirmação (edição/exclusão exige motivo) ──────────
+
+let mcModo = null, mcId = null;
+
+function abrirCorrecao(id, modo){
+  mcModo = modo; mcId = id;
+  const p = gpConfirmadas.find(x => x.id === id);
+  $('mcMsg').className = 'msg';
+  $('mcMotivo').value = '';
+  $('mcTitulo').textContent = modo === 'editar' ? 'Editar Produção Confirmada' : 'Excluir Produção Confirmada';
+  $('mcResumo').textContent = p ? (p.sabor_nome_cache+' — atualmente '+fmtKg(p.kg_gelato)) : '';
+  $('mcCampoPeso').style.display = modo === 'editar' ? 'flex' : 'none';
+  $('mcPeso').value = p ? p.kg_gelato : '';
+  $('modalCorrecao').classList.add('show');
+}
+
+async function salvarCorrecao(){
+  const motivo = $('mcMotivo').value.trim();
+  if (!motivo){ showMsg('mcMsg','Informe o motivo.','err'); return; }
+
+  if (mcModo === 'editar'){
+    const kg = Number($('mcPeso').value);
+    if (!kg || kg <= 0){ showMsg('mcMsg','Informe um peso válido.','err'); return; }
+    const { error } = await sb.rpc('gestor_editar_producao_confirmada', { p_id: mcId, p_kg_gelato: kg, p_motivo: motivo });
+    if (error){ showMsg('mcMsg','Erro: '+error.message,'err'); return; }
+  } else {
+    const { error } = await sb.rpc('gestor_excluir_producao_confirmada', { p_id: mcId, p_motivo: motivo });
+    if (error){ showMsg('mcMsg','Erro: '+error.message,'err'); return; }
+  }
+
+  fecharModal('modalCorrecao');
   await carregarProducoesDia();
 }
 
 // ===================== PAINEL DE GESTÃO =====================
-let pgLoja = 'todas', pgDe = null, pgAte = null, pgProducoes = [];
+let pgLoja = 'todas', pgDe = null, pgAte = null, pgProducoes = [], pgAuditoria = [];
 
 async function renderPainel(){
   if (!pgDe){ const d = new Date(); d.setDate(d.getDate()-6); pgDe = d.toISOString().slice(0,10); }
@@ -471,17 +586,40 @@ async function carregarPainel(){
   const el = $('pgConteudo');
   el.innerHTML = '<div class="loading">Carregando…</div>';
 
-  let query = sb.from('gestor_producoes').select('*, gestor_producao_consumos(*)').gte('data_producao', pgDe).lte('data_producao', pgAte);
+  let query = sb.from('gestor_producoes').select('*, gestor_producao_consumos(*)').gte('data_producao', pgDe).lte('data_producao', pgAte).eq('status','confirmada');
   if (pgLoja !== 'todas') query = query.eq('loja', pgLoja);
   const { data, error } = await query.order('data_producao', { ascending:false });
   if (error){ el.innerHTML = '<div class="empty">Erro: '+esc(error.message)+'</div>'; return; }
   pgProducoes = data || [];
+
+  // Auditoria: produções alteradas ou excluídas no período (visível pra todo mundo com acesso ao módulo)
+  let queryAud = sb.from('gestor_producoes').select('*').gte('data_producao', pgDe).lte('data_producao', pgAte)
+    .or('status.eq.excluida,motivo_alteracao.not.is.null');
+  if (pgLoja !== 'todas') queryAud = queryAud.eq('loja', pgLoja);
+  const { data: auditoria } = await queryAud.order('data_producao', { ascending:false });
+  pgAuditoria = auditoria || [];
+
   renderPainelConteudo();
+}
+
+function renderAuditoriaHTML(){
+  if (!pgAuditoria.length) return '';
+  return '<h4 style="font-size:.9rem;color:var(--marrom-dark);margin:22px 0 8px">Correções e exclusões no período</h4>'+
+    '<div class="table-wrap"><table><thead><tr><th>Data</th><th>Loja</th><th>Sabor</th><th>Kg</th><th>Status</th><th>Motivo</th><th>Quem / quando</th></tr></thead><tbody>'+
+      pgAuditoria.map(p => {
+        const excluida = p.status === 'excluida';
+        return '<tr class="alerta"><td>'+fmtData(p.data_producao)+'</td><td>'+esc(p.loja)+'</td><td>'+esc(p.sabor_nome_cache)+'</td><td>'+fmtKg(p.kg_gelato)+'</td>'+
+          '<td>'+(excluida?'<span class="badge badge-erro">excluída</span>':'<span class="badge badge-alerta">alterada</span>')+'</td>'+
+          '<td style="font-size:.78rem">'+esc(excluida ? p.motivo_exclusao : p.motivo_alteracao)+'</td>'+
+          '<td style="font-size:.76rem;color:var(--text-light)">'+esc(excluida ? p.excluido_por_nome : p.alterado_por_nome)+'<br>'+fmtDataHora(excluida ? p.excluido_em : p.alterado_em)+'</td>'+
+        '</tr>';
+      }).join('')+
+    '</tbody></table></div>';
 }
 
 function renderPainelConteudo(){
   const el = $('pgConteudo');
-  if (!pgProducoes.length){ el.innerHTML = '<div class="empty">Nenhuma produção confirmada nesse período.</div>'; return; }
+  if (!pgProducoes.length){ el.innerHTML = '<div class="empty">Nenhuma produção confirmada nesse período.</div>'+renderAuditoriaHTML(); return; }
 
   let totalKgGelato = 0;
   const porSabor = {}, porVariegato = {}, porLoja = {};
@@ -524,7 +662,8 @@ function renderPainelConteudo(){
         return '<tr><td>'+fmtData(p.data_producao)+'</td><td>'+esc(p.loja)+'</td><td>'+esc(p.sabor_nome_cache)+'</td><td>'+fmtKg(p.kg_gelato)+'</td>'+
           '<td style="font-size:.76rem">'+(consumos.length ? consumos.map(c => esc(c.variegato_nome_cache)+': '+fmtKg(c.kg_consumido)).join('<br>') : '<span style="color:var(--text-light)">—</span>')+'</td></tr>';
       }).join('')+
-    '</tbody></table></div>';
+    '</tbody></table></div>'+
+    renderAuditoriaHTML();
 }
 
 // ===================== FICHAS TÉCNICAS (CADASTRO) =====================
