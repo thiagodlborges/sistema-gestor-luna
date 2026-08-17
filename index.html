@@ -349,12 +349,32 @@ function renderNovoForm(){
   if (!saboresCache.length){ el.innerHTML = '<p class="hint">Nenhum sabor de gelato ativo encontrado na Precificação Fábrica.</p>'; return; }
   el.innerHTML =
     '<div class="row" style="margin-top:6px">'+
-      '<div class="field" style="min-width:240px"><label>Sabor</label><select class="inp" id="gpSaborSelect">'+
+      '<div class="field" style="min-width:240px"><label>Sabor</label><select class="inp" id="gpSaborSelect" onchange="calcularPreviewNovo()">'+
         '<option value="">— selecione o sabor —</option>'+
         saboresCache.map(s => '<option value="'+s.id+'">'+esc(s.nome)+'</option>').join('')+
       '</select></div>'+
-      '<div class="field" style="max-width:160px"><label>Peso do gelato (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" id="gpKgInput"></div>'+
+      '<div class="field" style="max-width:160px"><label>Peso do gelato (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" id="gpKgInput" oninput="calcularPreviewNovo()"></div>'+
       '<button class="btn" onclick="adicionarRascunho()">+ Adicionar</button>'+
+    '</div>'+
+    '<div id="gpPreviewNovo"></div>';
+}
+
+function calcularPreviewNovo(){
+  const box = $('gpPreviewNovo');
+  const saborId = $('gpSaborSelect').value;
+  const kg = Number($('gpKgInput').value);
+
+  if (!saborId || !kg || kg <= 0){ box.innerHTML = ''; return; }
+
+  const ficha = fichasCache[saborId];
+  if (!ficha || !ficha.itens.length){
+    box.innerHTML = '<div class="preview-box"><span style="color:#B8791A;font-size:.82rem">⚠️ esse sabor ainda não tem ficha técnica cadastrada — nenhum variegato será calculado.</span></div>';
+    return;
+  }
+
+  const proporcao = kg / Number(ficha.para_fazer_kg);
+  box.innerHTML = '<div class="preview-box"><h4>Consumo de variegato calculado</h4>'+
+    ficha.itens.map(it => '<div class="preview-line"><span>'+esc(it.variegato_nome_cache)+'</span><span>'+fmtKg(proporcao * Number(it.peso_kg))+'</span></div>').join('')+
     '</div>';
 }
 
@@ -367,7 +387,7 @@ async function adicionarRascunho(){
   const { error } = await sb.rpc('gestor_lancar_rascunho', { p_loja: gpLoja, p_data: gpData, p_sabor_produto_id: saborId, p_kg_gelato: kg });
   if (error){ alert('Erro ao lançar: '+error.message); return; }
 
-  $('gpSaborSelect').value = ''; $('gpKgInput').value = '';
+  $('gpSaborSelect').value = ''; $('gpKgInput').value = ''; $('gpPreviewNovo').innerHTML = '';
   await carregarProducoesDia();
 }
 
