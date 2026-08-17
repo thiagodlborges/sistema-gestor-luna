@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luna — Sistema Gestor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bordo:#6B1E2E; --bordo-dark:#4A1220; --bordo-light:#8B3345;
+    --creme:#F5EFE4; --creme-dark:#EDE4D4; --marrom:#A0785A;
+    --marrom-light:#C4A882; --marrom-dark:#7A5840;
+    --text:#2C1810; --text-light:#6B4F3A; --white:#FDFAF6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{overflow-x:hidden;max-width:100vw}
+  body{font-family:'Jost',sans-serif;background:var(--creme);color:var(--text);min-height:100vh}
+  a{color:inherit}
+
+  #carregandoOverlay{position:fixed;inset:0;z-index:99999;background:linear-gradient(145deg,#4A1220 0%,#2C0A14 60%,#1A0008 100%);display:flex;align-items:center;justify-content:center;color:#C4A882;font-size:.85rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;padding:20px}
+
+  #appRoot{display:none}
+  header{background:var(--bordo);color:var(--creme);padding:14px 26px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;box-shadow:0 2px 14px rgba(74,18,32,.25);position:sticky;top:0;z-index:200}
+  .brand{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:1.4rem}
+  .brand-sub{font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--marrom-light);margin-top:-2px}
+  header .spacer{flex:1}
+  .hbtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:var(--creme);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:.78rem;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:background .15s}
+  .hbtn:hover{background:rgba(255,255,255,.22)}
+  #menuToggle{display:none;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:var(--creme);width:38px;height:38px;border-radius:6px;cursor:pointer;font-size:1.1rem;align-items:center;justify-content:center}
+
+  .app-layout{display:flex;align-items:flex-start;min-height:calc(100vh - 66px)}
+
+  nav.tabs{display:flex;flex-direction:column;gap:2px;background:var(--white);border-right:1px solid var(--creme-dark);padding:16px 12px;width:230px;flex:0 0 230px;position:sticky;top:66px;height:calc(100vh - 66px);overflow-y:auto}
+  .tab{padding:11px 14px;font-size:.82rem;font-weight:500;color:var(--text-light);cursor:pointer;border-radius:8px;border-left:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:10px}
+  .tab:hover{background:var(--creme)}
+  .tab.active{color:var(--bordo);background:var(--creme);border-left-color:var(--bordo);font-weight:600}
+  .tab-secao{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--marrom-light);padding:14px 14px 4px}
+
+  #sidebarOverlay{display:none;position:fixed;inset:0;background:rgba(44,24,16,.5);z-index:149}
+  #sidebarOverlay.show{display:block}
+
+  main{flex:1;min-width:0;max-width:1140px;margin:0 auto;padding:28px 26px 60px}
+  .card{background:var(--white);border:1px solid var(--creme-dark);border-radius:12px;padding:22px;margin-bottom:18px}
+  .card h2{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--bordo-dark);margin-bottom:14px}
+  .card p.hint{font-size:.82rem;color:var(--text-light);margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light);font-weight:500}
+  .inp,select.inp,textarea.inp{padding:9px 12px;border:1.5px solid var(--creme-dark);border-radius:7px;font-family:'Jost',sans-serif;font-size:.85rem;color:var(--text);background:var(--white)}
+  .inp:focus{outline:none;border-color:var(--marrom)}
+  .btn{background:var(--bordo);color:var(--creme);border:none;padding:10px 18px;border-radius:7px;font-size:.78rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:background .15s}
+  .btn:hover{background:var(--bordo-dark)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn-outline{background:none;border:1.5px solid var(--bordo);color:var(--bordo)}
+  .btn-outline:hover{background:var(--bordo);color:var(--creme)}
+  .btn-danger{background:none;border:none;color:#B43C3C;cursor:pointer;font-size:.85rem}
+  .btn-sm{padding:6px 12px;font-size:.72rem}
+
+  .table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;min-width:560px;border-collapse:collapse;font-size:.82rem}
+  th{text-align:left;padding:9px 10px;background:var(--creme);color:var(--text-light);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em}
+  td{padding:9px 10px;border-top:1px solid var(--creme-dark);vertical-align:top}
+  tr.inativo td{color:var(--text-light);opacity:.6}
+  tr.alerta td{background:#FDF3E3}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:600;white-space:nowrap}
+  .badge-ok{background:#E8F8F0;color:#27AE60}
+  .badge-alerta{background:#FDF3E3;color:#B8791A}
+  .badge-erro{background:#FDEDEC;color:#B43C3C}
+
+  .empty{text-align:center;padding:40px;color:var(--text-light);font-size:.85rem}
+  .loading{text-align:center;padding:30px;color:var(--text-light)}
+
+  .item-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap}
+  .item-row .field{flex:1;min-width:140px}
+  .item-row .peso{max-width:120px}
+  .item-row .tipo{max-width:130px}
+
+  .stat-box{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+  .stat{background:var(--creme);border-radius:10px;padding:18px 22px;min-width:170px}
+  .stat .num{font-family:'Cormorant Garamond',serif;font-size:2rem;color:var(--bordo-dark);font-weight:600;line-height:1}
+  .stat .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-light);margin-top:6px}
+
+  .sabor-card{background:var(--white);border:1px solid var(--creme-dark);border-radius:12px;padding:16px 18px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .sabor-card .fnome{font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--bordo-dark);font-weight:600}
+  .sabor-card .fdet{font-size:.76rem;color:var(--text-light);margin-top:2px}
+  .sabor-card .facoes{display:flex;gap:8px;flex-wrap:wrap}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(44,24,16,.5);z-index:500;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.show{display:flex}
+  .modal{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--white);border-radius:14px;padding:26px}
+  .modal h3{font-family:'Cormorant Garamond',serif;font-size:1.25rem;color:var(--bordo-dark);margin-bottom:14px}
+  .modal-actions{display:flex;gap:10px;margin-top:16px}
+  .modal-close{background:none;border:none;color:var(--marrom-dark);text-decoration:underline;cursor:pointer;font-size:.78rem;display:block;margin:14px auto 0}
+  .msg{font-size:.78rem;margin-top:8px;display:none}
+  .msg.show{display:block}
+  .msg.err{color:#B43C3C}
+  .msg.ok{color:#27AE60}
+
+  @media (max-width:860px){
+    #menuToggle{display:flex}
+    nav.tabs{position:fixed;top:0;left:0;height:100vh;z-index:150;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 18px rgba(44,24,16,.25);padding-top:70px}
+    nav.tabs.show{transform:translateX(0)}
+  }
+
+  @media (max-width:600px){
+    header{padding:12px 16px}
+    main{padding:20px 16px 50px}
+    .card{padding:16px}
+  }
+</style>
+</head>
+<body>
+
+<div id="carregandoOverlay">Carregando…</div>
+
+<div id="appRoot">
+<header>
+  <button id="menuToggle" onclick="toggleSidebar()" aria-label="Abrir menu">☰</button>
+  <div>
+    <div class="brand">LUNA <span style="font-size:.7em;font-weight:400">Gestor</span></div>
+    <div class="brand-sub">Vitrines & Produção</div>
+  </div>
+  <div class="spacer"></div>
+  <a href="https://thiagodlborges.github.io/Sistema-Luna/" class="hbtn">← Sistema Luna</a>
+  <button class="hbtn" onclick="sairApp()">Sair</button>
+</header>
+
+<div id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+<div class="app-layout">
+<nav class="tabs" id="sidebarNav">
+  <div class="tab active" id="tabProducao" data-tab="producao" onclick="mudarTab('producao')">📋 Lançar Produção</div>
+  <div class="tab" id="tabConsumo" data-tab="consumo" onclick="mudarTab('consumo')">🧴 Consumo de Variegato</div>
+  <div class="tab-secao" id="secaoCadastros">Cadastros</div>
+  <div class="tab" id="tabFichas" data-tab="fichas" onclick="mudarTab('fichas')">📖 Fichas Técnicas</div>
+  <div class="tab" id="tabVariegatos" data-tab="variegatos" onclick="mudarTab('variegatos')">🪣 Variegatos (Baldes)</div>
+</nav>
+
+<main id="mainContent"><div class="loading">Carregando…</div></main>
+</div>
+</div>
+
+<!-- Modal: Sabor -->
+<div class="modal-overlay" id="modalSabor">
+  <div class="modal">
+    <h3 id="msTitulo">Novo Sabor</h3>
+    <input type="hidden" id="msId">
+    <div class="field" style="margin-bottom:10px"><label>Nome</label><input class="inp" id="msNome" placeholder="Ex: Gelato Cereja Silvestre"></div>
+    <div class="field" style="margin-bottom:10px"><label>Categoria (opcional)</label><input class="inp" id="msCategoria" placeholder="Ex: Gelato, Sorbet"></div>
+    <label class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="msAtivo" style="width:17px;height:17px"> <span style="font-size:.85rem">Ativo</span></label>
+    <div class="modal-actions">
+      <button class="btn" onclick="salvarSabor()">Salvar</button>
+      <button class="btn-outline btn" onclick="fecharModal('modalSabor')">Cancelar</button>
+    </div>
+    <div class="msg" id="msMsg"></div>
+  </div>
+</div>
+
+<!-- Modal: Variegato (balde) -->
+<div class="modal-overlay" id="modalVariegato">
+  <div class="modal">
+    <h3 id="mvTitulo">Novo Variegato</h3>
+    <input type="hidden" id="mvId">
+    <div class="field" style="margin-bottom:10px"><label>Nome</label><input class="inp" id="mvNome" placeholder="Ex: Amarena"></div>
+    <div class="field" style="margin-bottom:10px"><label>Peso do balde (Kg)</label><input class="inp" type="number" min="0.01" step="0.01" id="mvPesoBalde" placeholder="Ex: 3.5"></div>
+    <div class="field" style="margin-bottom:10px"><label>Observação (opcional)</label><input class="inp" id="mvObservacao"></div>
+    <label class="field" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:10px"><input type="checkbox" id="mvAtivo" style="width:17px;height:17px"> <span style="font-size:.85rem">Ativo</span></label>
+    <div class="modal-actions">
+      <button class="btn" onclick="salvarVariegato()">Salvar</button>
+      <button class="btn-outline btn" onclick="fecharModal('modalVariegato')">Cancelar</button>
+    </div>
+    <div class="msg" id="mvMsg"></div>
+  </div>
+</div>
+
+<!-- Modal: Ficha Técnica -->
+<div class="modal-overlay" id="modalFicha">
+  <div class="modal" style="max-width:660px">
+    <h3 id="mfTitulo">Ficha Técnica</h3>
+    <input type="hidden" id="mfSaborId">
+    <input type="hidden" id="mfFichaId">
+    <p class="hint" id="mfSaborNome" style="margin-bottom:14px"></p>
+    <div class="field" style="max-width:200px;margin-bottom:14px"><label>Para fazer (Kg)</label><input class="inp" type="number" min="0.01" step="0.01" id="mfParaFazerKg" placeholder="Ex: 4.0"></div>
+    <p class="hint" style="margin-bottom:8px">Itens da receita (base de gelato, variegatos e outros insumos), com o peso líquido usado nesse lote de referência.</p>
+    <div id="mfItensLista"></div>
+    <button class="btn-outline btn btn-sm" onclick="mfAdicionarItem()">+ Adicionar item</button>
+    <div class="modal-actions">
+      <button class="btn" onclick="salvarFicha()">Salvar ficha</button>
+      <button class="btn-outline btn" onclick="fecharModal('modalFicha')">Cancelar</button>
+    </div>
+    <div class="msg" id="mfMsg"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://pbuhwpcpdcnaheaywmdv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBidWh3cGNwZGNuYWhlYXl3bWR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjU5MzksImV4cCI6MjA5MTg0MTkzOX0.Mg4PVg96ZiV3C2Rn0GLQU9c7ui_41OlU6Ldqn5jcvyY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const PORTAL_URL = 'https://thiagodlborges.github.io/Sistema-Luna/';
+
+const $ = id => document.getElementById(id);
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtData(d){ return d ? new Date(d+'T12:00').toLocaleDateString('pt-BR') : '—'; }
+function fmtKg(v){ return (Number(v)||0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:3 })+' Kg'; }
+function showMsg(id, texto, tipo){ const el = $(id); el.textContent = texto; el.className = 'msg show '+tipo; }
+function fecharModal(id){ $(id).classList.remove('show'); }
+function isoHoje(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+let meuPerfil = null, souMaster = false, souGestorBackoffice = false;
+let currentTab = 'producao';
+let lojasCache = [];
+let saboresCache = [];
+let variegatosCache = [];
+let fichasCache = {}; // sabor_id -> { id, para_fazer_kg, itens: [...] }
+
+// ===================== BOOT / AUTH =====================
+
+async function verificarAcessoEIniciar(){
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = PORTAL_URL; return; }
+
+  const { data: ok, error } = await sb.rpc('tem_acesso', { p_slug: 'gestor' });
+  if (error || !ok) { await sb.auth.signOut(); window.location.href = PORTAL_URL; return; }
+
+  const { data: perfil } = await sb.from('perfis').select('*').eq('id', session.user.id).single();
+  if (!perfil) { window.location.href = PORTAL_URL; return; }
+  meuPerfil = perfil;
+
+  souMaster = perfil.tipo === 'master';
+  souGestorBackoffice = souMaster || perfil.gestor_backoffice === true;
+
+  if (!souGestorBackoffice){
+    $('secaoCadastros').style.display = 'none';
+    $('tabFichas').style.display = 'none';
+    $('tabVariegatos').style.display = 'none';
+  }
+
+  $('carregandoOverlay').style.display = 'none';
+  $('appRoot').style.display = 'block';
+  await carregarLojas();
+  await mudarTab('producao');
+}
+
+async function sairApp(){
+  await sb.auth.signOut();
+  window.location.href = PORTAL_URL;
+}
+
+function toggleSidebar(force){
+  const nav = $('sidebarNav'), overlay = $('sidebarOverlay');
+  const show = force !== undefined ? force : !nav.classList.contains('show');
+  nav.classList.toggle('show', show);
+  overlay.classList.toggle('show', show);
+}
+
+async function mudarTab(tab){
+  currentTab = tab;
+  toggleSidebar(false);
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  if (tab === 'producao') await renderProducao();
+  else if (tab === 'consumo') await renderConsumo();
+  else if (tab === 'fichas') await renderFichas();
+  else if (tab === 'variegatos') await renderVariegatos();
+}
+
+async function carregarLojas(){
+  const { data } = await sb.from('perfis').select('loja').not('loja','is',null);
+  const nomes = new Set((data||[]).map(p => p.loja).filter(Boolean));
+  lojasCache = Array.from(nomes).sort((a,b) => a.localeCompare(b,'pt-BR'));
+}
+
+async function carregarSabores(force){
+  if (saboresCache.length && !force) return saboresCache;
+  const { data, error } = await sb.from('gestor_sabores').select('*').order('nome');
+  saboresCache = error ? [] : (data || []);
+  return saboresCache;
+}
+
+async function carregarVariegatos(force){
+  if (variegatosCache.length && !force) return variegatosCache;
+  const { data, error } = await sb.from('gestor_variegatos').select('*').order('nome');
+  variegatosCache = error ? [] : (data || []);
+  return variegatosCache;
+}
+
+async function carregarFichas(force){
+  if (Object.keys(fichasCache).length && !force) return fichasCache;
+  const [{ data: fichas }, { data: itens }] = await Promise.all([
+    sb.from('gestor_fichas_tecnicas').select('*'),
+    sb.from('gestor_ficha_itens').select('*').order('ordem')
+  ]);
+  fichasCache = {};
+  (fichas||[]).forEach(f => { fichasCache[f.sabor_id] = Object.assign({}, f, { itens: [] }); });
+  (itens||[]).forEach(it => {
+    const ficha = Object.values(fichasCache).find(f => f.id === it.ficha_id);
+    if (ficha) ficha.itens.push(it);
+  });
+  return fichasCache;
+}
+
+function invalidarCaches(){ fichasCache = {}; }
+
+// Selo de loja: usuário de loja fica travado na própria; backoffice/master escolhe.
+function campoLojaHTML(idSelect, valorAtual, onChangeFn){
+  if (!souGestorBackoffice && meuPerfil.loja){
+    return '<input type="hidden" id="'+idSelect+'" value="'+esc(meuPerfil.loja)+'">'+
+           '<div class="inp" style="background:var(--creme);cursor:default">'+esc(meuPerfil.loja)+'</div>';
+  }
+  return '<select class="inp" id="'+idSelect+'" onchange="'+onChangeFn+'">'+
+    '<option value="">— selecione —</option>'+
+    lojasCache.map(l => '<option value="'+esc(l)+'"'+(valorAtual===l?' selected':'')+'>'+esc(l)+'</option>').join('')+
+  '</select>';
+}
+
+// ===================== LANÇAR PRODUÇÃO =====================
+let gpLoja = null, gpData = null, gpLancamentos = {}; // sabor_id -> registro do dia
+
+async function renderProducao(){
+  if (!gpLoja && !souGestorBackoffice) gpLoja = meuPerfil.loja || null;
+  if (!gpData) gpData = isoHoje();
+
+  $('mainContent').innerHTML =
+    '<div class="card">'+
+      '<h2>Lançar Produção do Dia</h2>'+
+      '<p class="hint">Informe quantos Kg de cada sabor a loja vai produzir hoje. Isso ajuda a manter as cubas cheias e alimenta o cálculo de consumo de variegato.</p>'+
+      '<div class="row">'+
+        '<div class="field" style="min-width:220px"><label>Loja</label>'+campoLojaHTML('gpLojaSelect', gpLoja, 'mudarLojaProducao()')+'</div>'+
+        '<div class="field" style="max-width:180px"><label>Data</label><input class="inp" type="date" id="gpDataInput" value="'+gpData+'" onchange="mudarDataProducao()"></div>'+
+      '</div>'+
+      '<div id="gpConteudo"><div class="loading">Carregando…</div></div>'+
+    '</div>';
+
+  await carregarSabores();
+  if (gpLoja) await carregarECarregarLancamentos(); else renderProducaoConteudo();
+}
+
+function mudarLojaProducao(){
+  gpLoja = $('gpLojaSelect').value || null;
+  carregarECarregarLancamentos();
+}
+
+function mudarDataProducao(){
+  gpData = $('gpDataInput').value;
+  carregarECarregarLancamentos();
+}
+
+async function carregarECarregarLancamentos(){
+  const el = $('gpConteudo');
+  if (!gpLoja){ el.innerHTML = '<div class="empty">Escolha a loja.</div>'; return; }
+  el.innerHTML = '<div class="loading">Carregando…</div>';
+
+  const { data, error } = await sb.from('gestor_producao_diaria').select('*').eq('loja', gpLoja).eq('data_producao', gpData);
+  if (error){ el.innerHTML = '<div class="empty">Erro: '+esc(error.message)+'</div>'; return; }
+
+  gpLancamentos = {};
+  (data||[]).forEach(r => { gpLancamentos[r.sabor_id] = r; });
+  await carregarFichas();
+  renderProducaoConteudo();
+}
+
+function renderProducaoConteudo(){
+  const el = $('gpConteudo');
+  if (!gpLoja){ el.innerHTML = '<div class="empty">Escolha a loja.</div>'; return; }
+
+  const ativos = saboresCache.filter(s => s.ativo);
+  if (!ativos.length){ el.innerHTML = '<div class="empty">Nenhum sabor cadastrado ainda. Peça pro backoffice cadastrar em "Fichas Técnicas".</div>'; return; }
+
+  let totalKg = 0;
+  Object.values(gpLancamentos).forEach(r => totalKg += Number(r.kg_planejado)||0);
+
+  el.innerHTML =
+    '<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Sabor</th><th style="width:160px">Kg planejado</th><th>Ficha técnica</th><th></th></tr></thead><tbody>'+
+      ativos.map(s => {
+        const lanc = gpLancamentos[s.id];
+        const ficha = fichasCache[s.id];
+        const semFicha = !ficha || !ficha.itens.length;
+        return '<tr'+(semFicha?' class="alerta"':'')+'>'+
+          '<td>'+esc(s.nome)+(s.categoria?' <span style="color:var(--text-light);font-size:.76rem">— '+esc(s.categoria)+'</span>':'')+'</td>'+
+          '<td><input class="inp" type="number" min="0" step="0.001" value="'+(lanc?Number(lanc.kg_planejado):'')+'" placeholder="0" onchange="salvarKgProducao(\''+s.id+'\',this.value)"></td>'+
+          '<td>'+(semFicha ? '<span class="badge badge-alerta">⚠️ sem ficha técnica</span>' : '<span class="badge badge-ok">✓ cadastrada</span>')+'</td>'+
+          '<td>'+(lanc ? '<button class="btn-danger" onclick="excluirProducao(\''+s.id+'\')">🗑️</button>' : '')+'</td>'+
+        '</tr>';
+      }).join('')+
+    '</tbody></table></div>'+
+    '<div class="stat-box" style="margin-top:16px"><div class="stat"><div class="num">'+totalKg.toFixed(2)+'</div><div class="lbl">Kg totais planejados</div></div></div>';
+}
+
+async function salvarKgProducao(saborId, valor){
+  const kg = Number(valor);
+  if (!valor || isNaN(kg) || kg <= 0){
+    if (gpLancamentos[saborId]) await excluirProducao(saborId, true);
+    return;
+  }
+  const payload = {
+    loja: gpLoja, data_producao: gpData, sabor_id: saborId, kg_planejado: kg,
+    registrado_por: (await sb.auth.getUser()).data.user.id, registrado_por_nome: meuPerfil.nome
+  };
+  const { data, error } = await sb.from('gestor_producao_diaria').upsert(payload, { onConflict: 'loja,data_producao,sabor_id' }).select().single();
+  if (error){ alert('Erro ao salvar: '+error.message); return; }
+  gpLancamentos[saborId] = data;
+  renderProducaoConteudo();
+}
+
+async function excluirProducao(saborId, silencioso){
+  const lanc = gpLancamentos[saborId];
+  if (!lanc) return;
+  if (!silencioso && !confirm('Remover esse lançamento?')) return;
+  const { error } = await sb.from('gestor_producao_diaria').delete().eq('id', lanc.id);
+  if (error){ alert('Erro ao excluir: '+error.message); return; }
+  delete gpLancamentos[saborId];
+  renderProducaoConteudo();
+}
+
+// ===================== CONSUMO DE VARIEGATO =====================
+
+async function renderConsumo(){
+  if (!gpLoja && !souGestorBackoffice) gpLoja = meuPerfil.loja || null;
+  if (!gpData) gpData = isoHoje();
+
+  $('mainContent').innerHTML =
+    '<div class="card">'+
+      '<h2>Consumo de Variegato</h2>'+
+      '<p class="hint">Calculado a partir do que foi lançado em "Lançar Produção", na mesma proporção da ficha técnica de cada sabor. Use pra saber quantos baldes separar antes de abrir a loja.</p>'+
+      '<div class="row">'+
+        '<div class="field" style="min-width:220px"><label>Loja</label>'+campoLojaHTML('cvLojaSelect', gpLoja, 'mudarLojaConsumo()')+'</div>'+
+        '<div class="field" style="max-width:180px"><label>Data</label><input class="inp" type="date" id="cvDataInput" value="'+gpData+'" onchange="mudarDataConsumo()"></div>'+
+      '</div>'+
+      '<div id="cvConteudo"><div class="loading">Carregando…</div></div>'+
+    '</div>';
+
+  await carregarSabores();
+  await carregarVariegatos();
+  await carregarFichas();
+  if (gpLoja) await carregarLancamentosConsumo(); else renderConsumoConteudo();
+}
+
+function mudarLojaConsumo(){ gpLoja = $('cvLojaSelect').value || null; carregarLancamentosConsumo(); }
+function mudarDataConsumo(){ gpData = $('cvDataInput').value; carregarLancamentosConsumo(); }
+
+async function carregarLancamentosConsumo(){
+  const el = $('cvConteudo');
+  if (!gpLoja){ el.innerHTML = '<div class="empty">Escolha a loja.</div>'; return; }
+  el.innerHTML = '<div class="loading">Carregando…</div>';
+  const { data, error } = await sb.from('gestor_producao_diaria').select('*').eq('loja', gpLoja).eq('data_producao', gpData);
+  if (error){ el.innerHTML = '<div class="empty">Erro: '+esc(error.message)+'</div>'; return; }
+  gpLancamentos = {};
+  (data||[]).forEach(r => { gpLancamentos[r.sabor_id] = r; });
+  renderConsumoConteudo();
+}
+
+function renderConsumoConteudo(){
+  const el = $('cvConteudo');
+  if (!gpLoja){ el.innerHTML = '<div class="empty">Escolha a loja.</div>'; return; }
+  const lancs = Object.values(gpLancamentos);
+  if (!lancs.length){ el.innerHTML = '<div class="empty">Nenhuma produção lançada pra essa loja/data ainda.</div>'; return; }
+
+  const consumoPorVariegato = {}; // variegato_id -> {kg, sabores:Set}
+  const semFicha = [];
+  lancs.forEach(l => {
+    const sabor = saboresCache.find(s => s.id === l.sabor_id);
+    const ficha = fichasCache[l.sabor_id];
+    if (!ficha || !ficha.itens.length){ semFicha.push(sabor ? sabor.nome : '—'); return; }
+    const proporcao = Number(l.kg_planejado) / Number(ficha.para_fazer_kg);
+    ficha.itens.filter(it => it.tipo === 'variegato' && it.variegato_id).forEach(it => {
+      const consumoKg = proporcao * Number(it.peso_kg);
+      if (!consumoPorVariegato[it.variegato_id]) consumoPorVariegato[it.variegato_id] = { kg: 0, sabores: new Set() };
+      consumoPorVariegato[it.variegato_id].kg += consumoKg;
+      consumoPorVariegato[it.variegato_id].sabores.add(sabor ? sabor.nome : '—');
+    });
+  });
+
+  const linhas = Object.keys(consumoPorVariegato).map(vid => {
+    const v = variegatosCache.find(x => x.id === vid);
+    const info = consumoPorVariegato[vid];
+    const baldes = v && v.peso_balde_kg ? info.kg / Number(v.peso_balde_kg) : null;
+    return { nome: v ? v.nome : '(variegato excluído)', kg: info.kg, baldes, sabores: Array.from(info.sabores) };
+  }).sort((a,b) => b.kg - a.kg);
+
+  el.innerHTML =
+    (semFicha.length ? '<div class="msg show err" style="margin-bottom:12px">Sem ficha técnica cadastrada pra: '+semFicha.map(esc).join(', ')+'. O consumo desses sabores não entrou na conta.</div>' : '')+
+    (linhas.length ? '<div class="table-wrap"><table><thead><tr><th>Variegato</th><th>Kg necessários</th><th>Baldes</th><th>Usado em</th></tr></thead><tbody>'+
+      linhas.map(l => (
+        '<tr><td>'+esc(l.nome)+'</td><td>'+fmtKg(l.kg)+'</td><td>'+(l.baldes!=null ? l.baldes.toFixed(2)+' balde(s) <span style="color:var(--text-light);font-size:.72rem">(arred. p/ cima: '+Math.ceil(l.baldes)+')</span>' : '<span style="color:var(--text-light)">peso do balde não cadastrado</span>')+'</td>'+
+        '<td style="font-size:.78rem;color:var(--text-light)">'+l.sabores.map(esc).join(', ')+'</td></tr>'
+      )).join('')+
+    '</tbody></table></div>' : '<div class="empty">Os sabores lançados nessa data não usam variegato, ou não têm ficha técnica cadastrada.</div>');
+}
+
+// ===================== FICHAS TÉCNICAS (CADASTRO) =====================
+
+async function renderFichas(){
+  $('mainContent').innerHTML =
+    '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'+
+        '<h2 style="margin:0">Sabores & Fichas Técnicas</h2>'+
+        '<button class="btn btn-sm" onclick="abrirModalSabor()">+ Novo Sabor</button>'+
+      '</div>'+
+      '<p class="hint" style="margin-top:6px">Cada ficha define quanto rende o lote de referência ("Para fazer: X Kg") e quanto entra de cada matéria-prima — base de gelato, variegatos e outros insumos.</p>'+
+      '<div id="fichasLista" style="margin-top:12px" class="loading">Carregando…</div>'+
+    '</div>';
+
+  await carregarSabores(true);
+  await carregarVariegatos();
+  await carregarFichas(true);
+  renderFichasLista();
+}
+
+function renderFichasLista(){
+  const el = $('fichasLista');
+  if (!saboresCache.length){ el.innerHTML = '<div class="empty">Nenhum sabor cadastrado ainda.</div>'; return; }
+
+  el.innerHTML = saboresCache.map(s => {
+    const ficha = fichasCache[s.id];
+    const temFicha = ficha && ficha.itens.length;
+    return '<div class="sabor-card"'+(s.ativo?'':' style="opacity:.6"')+'>'+
+      '<div>'+
+        '<div class="fnome">'+esc(s.nome)+(s.categoria?' <span style="font-size:.75rem;color:var(--text-light)">— '+esc(s.categoria)+'</span>':'')+(s.ativo?'':' <span class="badge badge-erro">inativo</span>')+'</div>'+
+        '<div class="fdet">'+(temFicha ? 'Para fazer '+fmtKg(ficha.para_fazer_kg)+' · '+ficha.itens.length+' item(ns) na receita' : '⚠️ Sem ficha técnica cadastrada')+'</div>'+
+      '</div>'+
+      '<div class="facoes">'+
+        '<button class="btn-outline btn btn-sm" onclick="abrirModalFicha(\''+s.id+'\')">'+(temFicha?'📖 Editar ficha':'📖 Criar ficha')+'</button>'+
+        '<button class="btn-outline btn btn-sm" onclick="abrirModalSabor(\''+s.id+'\')">✏️ Sabor</button>'+
+        '<button class="btn-danger" onclick="excluirSabor(\''+s.id+'\')">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function abrirModalSabor(id){
+  $('msMsg').className = 'msg';
+  const s = id ? saboresCache.find(x => x.id === id) : null;
+  $('msId').value = s ? s.id : '';
+  $('msTitulo').textContent = s ? 'Editar Sabor' : 'Novo Sabor';
+  $('msNome').value = s ? s.nome : '';
+  $('msCategoria').value = s ? (s.categoria||'') : '';
+  $('msAtivo').checked = s ? s.ativo : true;
+  $('modalSabor').classList.add('show');
+}
+
+async function salvarSabor(){
+  const id = $('msId').value || null;
+  const nome = $('msNome').value.trim();
+  const categoria = $('msCategoria').value.trim() || null;
+  const ativo = $('msAtivo').checked;
+  if (!nome){ showMsg('msMsg','Informe o nome do sabor.','err'); return; }
+
+  const dados = { nome, categoria, ativo };
+  const { error } = id
+    ? await sb.from('gestor_sabores').update(dados).eq('id', id)
+    : await sb.from('gestor_sabores').insert(dados);
+  if (error){ showMsg('msMsg','Erro: '+error.message,'err'); return; }
+
+  fecharModal('modalSabor');
+  await carregarSabores(true);
+  renderFichasLista();
+}
+
+async function excluirSabor(id){
+  const s = saboresCache.find(x => x.id === id);
+  if (!confirm('Excluir o sabor "'+(s?s.nome:'')+'"? Isso também apaga a ficha técnica dele. Lançamentos de produção já feitos não são apagados.')) return;
+  const { error } = await sb.from('gestor_sabores').delete().eq('id', id);
+  if (error){ alert('Erro ao excluir: '+error.message); return; }
+  await carregarSabores(true);
+  await carregarFichas(true);
+  renderFichasLista();
+}
+
+// ── Modal de ficha técnica ──────────────────────────
+let mfItensAtual = [];
+
+async function abrirModalFicha(saborId){
+  $('mfMsg').className = 'msg';
+  const sabor = saboresCache.find(s => s.id === saborId);
+  const ficha = fichasCache[saborId];
+
+  $('mfSaborId').value = saborId;
+  $('mfFichaId').value = ficha ? ficha.id : '';
+  $('mfTitulo').textContent = 'Ficha Técnica';
+  $('mfSaborNome').textContent = sabor ? sabor.nome : '';
+  $('mfParaFazerKg').value = ficha ? ficha.para_fazer_kg : '';
+  mfItensAtual = ficha ? ficha.itens.map(it => Object.assign({}, it)) : [];
+
+  mfRenderItens();
+  $('modalFicha').classList.add('show');
+}
+
+function mfAdicionarItem(){
+  mfItensAtual.push({ tipo:'base', nome_materia_prima:'', variegato_id:null, peso_kg:'' });
+  mfRenderItens();
+}
+function mfRemoverItem(idx){
+  mfItensAtual.splice(idx,1);
+  mfRenderItens();
+}
+function mfMudarTipo(idx, tipo){
+  mfItensAtual[idx].tipo = tipo;
+  if (tipo !== 'variegato') mfItensAtual[idx].variegato_id = null;
+  mfRenderItens();
+}
+function mfMudarCampo(idx, campo, valor){
+  mfItensAtual[idx][campo] = valor;
+}
+
+function mfRenderItens(){
+  const el = $('mfItensLista');
+  if (!mfItensAtual.length){ el.innerHTML = '<p class="hint">Nenhum item ainda.</p>'; return; }
+  el.innerHTML = mfItensAtual.map((it, i) => (
+    '<div class="item-row">'+
+      '<div class="field tipo"><label>Tipo</label><select class="inp" onchange="mfMudarTipo('+i+',this.value)">'+
+        ['base','variegato','insumo'].map(t => '<option value="'+t+'"'+(it.tipo===t?' selected':'')+'>'+({base:'Base',variegato:'Variegato',insumo:'Insumo'}[t])+'</option>').join('')+
+      '</select></div>'+
+      '<div class="field"><label>Matéria-prima</label><input class="inp" value="'+esc(it.nome_materia_prima)+'" placeholder="Ex: Gelato Bacio di Latte BO 4Kg" onchange="mfMudarCampo('+i+',\'nome_materia_prima\',this.value)"></div>'+
+      (it.tipo === 'variegato' ? '<div class="field"><label>Variegato (balde)</label><select class="inp" onchange="mfMudarCampo('+i+',\'variegato_id\',this.value)">'+
+        '<option value="">— vincular a um balde —</option>'+
+        variegatosCache.map(v => '<option value="'+v.id+'"'+(it.variegato_id===v.id?' selected':'')+'>'+esc(v.nome)+'</option>').join('')+
+      '</select></div>' : '')+
+      '<div class="field peso"><label>Peso líq. (Kg)</label><input class="inp" type="number" min="0.001" step="0.001" value="'+it.peso_kg+'" onchange="mfMudarCampo('+i+',\'peso_kg\',this.value)"></div>'+
+      '<button class="btn-danger" onclick="mfRemoverItem('+i+')">🗑️</button>'+
+    '</div>'
+  )).join('');
+}
+
+async function salvarFicha(){
+  const saborId = $('mfSaborId').value;
+  const fichaId = $('mfFichaId').value || null;
+  const paraFazerKg = Number($('mfParaFazerKg').value);
+
+  if (!paraFazerKg || paraFazerKg <= 0){ showMsg('mfMsg','Informe quantos Kg esse lote de referência rende.','err'); return; }
+  if (!mfItensAtual.length){ showMsg('mfMsg','Adicione ao menos um item na receita.','err'); return; }
+  for (const it of mfItensAtual){
+    if (!it.nome_materia_prima.trim()){ showMsg('mfMsg','Preencha o nome da matéria-prima em todos os itens.','err'); return; }
+    if (!it.peso_kg || Number(it.peso_kg) <= 0){ showMsg('mfMsg','Preencha um peso válido em todos os itens.','err'); return; }
+    if (it.tipo === 'variegato' && !it.variegato_id){ showMsg('mfMsg','Vincule cada item de variegato a um balde cadastrado (ou mude o tipo pra "Insumo" se não for controlar por balde).','err'); return; }
+  }
+
+  const usuario = (await sb.auth.getUser()).data.user;
+  let id = fichaId;
+  if (id){
+    const { error } = await sb.from('gestor_fichas_tecnicas').update({ para_fazer_kg: paraFazerKg }).eq('id', id);
+    if (error){ showMsg('mfMsg','Erro: '+error.message,'err'); return; }
+    await sb.from('gestor_ficha_itens').delete().eq('ficha_id', id);
+  } else {
+    const { data, error } = await sb.from('gestor_fichas_tecnicas').insert({
+      sabor_id: saborId, para_fazer_kg: paraFazerKg, criado_por: usuario.id, criado_por_nome: meuPerfil.nome
+    }).select('id').single();
+    if (error){ showMsg('mfMsg','Erro: '+error.message,'err'); return; }
+    id = data.id;
+  }
+
+  const linhas = mfItensAtual.map((it, i) => ({
+    ficha_id: id, tipo: it.tipo, nome_materia_prima: it.nome_materia_prima.trim(),
+    variegato_id: it.tipo === 'variegato' ? it.variegato_id : null, peso_kg: Number(it.peso_kg), ordem: i+1
+  }));
+  const { error: errItens } = await sb.from('gestor_ficha_itens').insert(linhas);
+  if (errItens){ showMsg('mfMsg','Ficha salva, mas houve erro ao gravar os itens: '+errItens.message,'err'); return; }
+
+  fecharModal('modalFicha');
+  await carregarFichas(true);
+  renderFichasLista();
+}
+
+// ===================== VARIEGATOS (BALDES) =====================
+
+async function renderVariegatos(){
+  $('mainContent').innerHTML =
+    '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'+
+        '<h2 style="margin:0">Variegatos (Baldes)</h2>'+
+        '<button class="btn btn-sm" onclick="abrirModalVariegato()">+ Novo Variegato</button>'+
+      '</div>'+
+      '<p class="hint" style="margin-top:6px">Cadastre cada variegato com o peso do balde — isso é usado pra converter o consumo calculado (em Kg) em número de baldes a separar.</p>'+
+      '<div id="variegatosLista" style="margin-top:12px" class="loading">Carregando…</div>'+
+    '</div>';
+
+  await carregarVariegatos(true);
+  renderVariegatosLista();
+}
+
+function renderVariegatosLista(){
+  const el = $('variegatosLista');
+  if (!variegatosCache.length){ el.innerHTML = '<div class="empty">Nenhum variegato cadastrado ainda.</div>'; return; }
+
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Variegato</th><th>Peso do balde (Kg)</th><th>Observação</th><th>Ativo</th><th></th></tr></thead><tbody>'+
+    variegatosCache.map(v => (
+      '<tr'+(v.ativo?'':' class="inativo"')+'>'+
+        '<td>'+esc(v.nome)+'</td>'+
+        '<td>'+fmtKg(v.peso_balde_kg)+'</td>'+
+        '<td>'+esc(v.observacao||'—')+'</td>'+
+        '<td><input type="checkbox" '+(v.ativo?'checked':'')+' onchange="salvarAtivoVariegato(\''+v.id+'\',this.checked)"></td>'+
+        '<td style="white-space:nowrap"><button class="btn-outline btn btn-sm" onclick="abrirModalVariegato(\''+v.id+'\')">Editar</button> <button class="btn-danger" onclick="excluirVariegato(\''+v.id+'\')">🗑️</button></td>'+
+      '</tr>'
+    )).join('')+
+    '</tbody></table></div>';
+}
+
+async function salvarAtivoVariegato(id, ativo){
+  const { error } = await sb.from('gestor_variegatos').update({ ativo }).eq('id', id);
+  if (error) alert('Erro ao salvar: '+error.message);
+  await carregarVariegatos(true);
+}
+
+function abrirModalVariegato(id){
+  $('mvMsg').className = 'msg';
+  const v = id ? variegatosCache.find(x => x.id === id) : null;
+  $('mvId').value = v ? v.id : '';
+  $('mvTitulo').textContent = v ? 'Editar Variegato' : 'Novo Variegato';
+  $('mvNome').value = v ? v.nome : '';
+  $('mvPesoBalde').value = v ? v.peso_balde_kg : '';
+  $('mvObservacao').value = v ? (v.observacao||'') : '';
+  $('mvAtivo').checked = v ? v.ativo : true;
+  $('modalVariegato').classList.add('show');
+}
+
+async function salvarVariegato(){
+  const id = $('mvId').value || null;
+  const nome = $('mvNome').value.trim();
+  const peso_balde_kg = Number($('mvPesoBalde').value);
+  const observacao = $('mvObservacao').value.trim() || null;
+  const ativo = $('mvAtivo').checked;
+  if (!nome){ showMsg('mvMsg','Informe o nome do variegato.','err'); return; }
+  if (!peso_balde_kg || peso_balde_kg <= 0){ showMsg('mvMsg','Informe o peso do balde (maior que zero).','err'); return; }
+
+  const dados = { nome, peso_balde_kg, observacao, ativo };
+  const { error } = id
+    ? await sb.from('gestor_variegatos').update(dados).eq('id', id)
+    : await sb.from('gestor_variegatos').insert(dados);
+  if (error){ showMsg('mvMsg','Erro: '+error.message,'err'); return; }
+
+  fecharModal('modalVariegato');
+  await carregarVariegatos(true);
+  renderVariegatosLista();
+}
+
+async function excluirVariegato(id){
+  const v = variegatosCache.find(x => x.id === id);
+  if (!confirm('Excluir o variegato "'+(v?v.nome:'')+'"? Itens de ficha técnica que apontam pra ele ficam sem vínculo.')) return;
+  const { error } = await sb.from('gestor_variegatos').delete().eq('id', id);
+  if (error){ alert('Erro ao excluir: '+error.message); return; }
+  await carregarVariegatos(true);
+  renderVariegatosLista();
+}
+
+verificarAcessoEIniciar();
+</script>
+</body>
+</html>
