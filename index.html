@@ -265,10 +265,12 @@ async function mudarTab(tab){
   else if (tab === 'variegatos') await renderVariegatos();
 }
 
+// Lista fixa de lojas (mesmo padrão usado no módulo Qualidade) — não dá pra ler isso
+// de `perfis` porque a RLS da tabela só permite cada usuário ver a própria linha.
+const TODAS_LOJAS = ['Esplanada','Cianê','Tucuruvi','Indaiatuba','Jundiaí','Praça da Moça - Diadema','Buriti Mogi Guaçu','SP Market','Iguatemi Campinas','Shopping Itaquera','Atrium'];
+
 async function carregarLojas(){
-  const { data } = await sb.from('perfis').select('loja').not('loja','is',null);
-  const nomes = new Set((data||[]).map(p => p.loja).filter(Boolean));
-  lojasCache = Array.from(nomes).sort((a,b) => a.localeCompare(b,'pt-BR'));
+  lojasCache = TODAS_LOJAS.slice().sort((a,b) => a.localeCompare(b,'pt-BR'));
 }
 
 async function carregarSabores(force){
