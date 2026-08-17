@@ -410,13 +410,28 @@ function renderRascunhosLista(){
   $('btnRevisar').style.display = gpRascunhos.length ? 'inline-block' : 'none';
   if (!gpRascunhos.length){ el.innerHTML = '<div class="empty">Nenhum lançamento pendente. Adicione os gelatos produzidos acima.</div>'; return; }
 
-  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Sabor</th><th style="width:140px">Kg</th><th></th></tr></thead><tbody>'+
-    gpRascunhos.map(p => (
-      '<tr><td>'+esc(p.sabor_nome_cache)+'</td>'+
-      '<td><input class="inp" type="number" min="0.001" step="0.001" value="'+p.kg_gelato+'" onchange="editarRascunho(\''+p.id+'\',this.value)"></td>'+
-      '<td><button class="btn-danger" onclick="excluirRascunho(\''+p.id+'\')">🗑️</button></td></tr>'
-    )).join('')+
-  '</tbody></table></div>';
+  el.innerHTML = gpRascunhos.map(p => {
+    const ficha = fichasCache[p.sabor_produto_id];
+    let previewHtml;
+    if (!ficha || !ficha.itens.length){
+      previewHtml = '<span style="color:#B8791A;font-size:.78rem">⚠️ sem ficha técnica — nenhum variegato será debitado</span>';
+    } else {
+      const proporcao = Number(p.kg_gelato) / Number(ficha.para_fazer_kg);
+      previewHtml = '<div class="preview-box" style="margin-top:8px">'+
+        ficha.itens.map(it => '<div class="preview-line"><span>'+esc(it.variegato_nome_cache)+'</span><span>'+fmtKg(proporcao * Number(it.peso_kg))+'</span></div>').join('')+
+      '</div>';
+    }
+    return '<div class="sabor-card">'+
+      '<div style="flex:1;min-width:220px">'+
+        '<div class="row" style="margin:0 0 8px;align-items:center">'+
+          '<div class="fnome" style="margin-right:auto">'+esc(p.sabor_nome_cache)+'</div>'+
+          '<div class="field" style="max-width:130px"><label>Kg</label><input class="inp" type="number" min="0.001" step="0.001" value="'+p.kg_gelato+'" onchange="editarRascunho(\''+p.id+'\',this.value)"></div>'+
+        '</div>'+
+        previewHtml+
+      '</div>'+
+      '<button class="btn-danger" onclick="excluirRascunho(\''+p.id+'\')">🗑️</button>'+
+    '</div>';
+  }).join('');
 }
 
 async function editarRascunho(id, valor){
